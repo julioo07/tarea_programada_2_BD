@@ -1,0 +1,48 @@
+Estructura Hadoop
+
+1. Una vez instalado y configurado, dentro del user dedicado de Hadoop crear estas carpetas:
+mkdir ~/music-loader
+mkdir ~/music-loader/raw
+cd ~/music-loader
+
+
+2. Mover el .zip a la carpeta del loader
+cp /home/CAMBIAR_USER/Downloads/archive.zip ~/music-loader/
+
+
+3. Descomprimir
+unzip archive.zip -d raw
+
+
+4. Crear estructura del HDFS
+hdfs dfs -mkdir /music
+hdfs dfs -mkdir /music/raw
+hdfs dfs -mkdir /music/processed
+
+
+5. Subir los archivos
+hdfs dfs -put ~/music-loader/raw/user_top_artists.csv /music/raw/
+hdfs dfs -put ~/music-loader/raw/user_top_tracks.csv /music/raw/
+hdfs dfs -put ~/music-loader/raw/user_top_albums.csv /music/raw/
+hdfs dfs -put ~/music-loader/raw/user_top_users.csv /music/raw/
+Solo los archivos con los datos
+Aqui ya los datos estan en el HDFS pero en .cvs sin limpiar y cambiar formato
+
+
+6. Instalar py.spark
+Yo lo hice con un entorno virtual
+
+
+7. Crear Loader y pegar el codigo
+nano ~/music-loader/loader.py
+
+
+8. Correr el loader
+python3 ~/music-loader/loader.py
+
+Ya asi quedan los datos cargados y limpios. Los nuevos files son Parquet para facilitar la lectura con Spark.
+
+
+
+
+
