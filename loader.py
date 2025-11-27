@@ -7,7 +7,7 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 
-# ========== 1. ARTISTS ===================
+# ARTISTS
 
 
 artists_df = spark.read.csv("hdfs://localhost:9000/music/raw/user_top_artists.csv", header=True)
@@ -22,7 +22,7 @@ artists_clean = artists_df.select(
 artists_clean.write.mode("overwrite").parquet("hdfs://localhost:9000/music/processed/artists")
 
 
-# ========== 2. TRACKS ====================
+# TRACKS
 
 
 tracks_df = spark.read.csv("hdfs://localhost:9000/music/raw/user_top_tracks.csv", header=True)
@@ -38,7 +38,7 @@ tracks_clean = tracks_df.select(
 tracks_clean.write.mode("overwrite").parquet("hdfs://localhost:9000/music/processed/tracks")
 
 
-# ========== 3. ALBUMS ====================
+# ALBUMS
 
 
 albums_df = spark.read.csv("hdfs://localhost:9000/music/raw/user_top_albums.csv", header=True)
@@ -54,7 +54,7 @@ albums_clean = albums_df.select(
 albums_clean.write.mode("overwrite").parquet("hdfs://localhost:9000/music/processed/albums")
 
 
-# ========== 4. USERS =====================
+# USERS
 
 
 users_df = spark.read.csv("hdfs://localhost:9000/music/raw/users.csv", header=True)
@@ -66,3 +66,4 @@ users_df.write.mode("overwrite").parquet("hdfs://localhost:9000/music/processed/
 
 print("Loader terminado con exito")
 spark.stop()
+
