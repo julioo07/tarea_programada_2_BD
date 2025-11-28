@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, desc, avg, stddev, expr, lit, collect_list, row_number
+from pyspark.sql.functions import col, count, desc, avg, mean, stddev, expr, lit, collect_list, row_number, sum as spark_sum, approx_percentile, coalesce, countDistinct, concat_ws
 from pyspark.sql.window import Window
 
 spark = SparkSession.builder.appName("MusicAnalyses").getOrCreate()
@@ -12,135 +12,229 @@ albums = spark.read.parquet("hdfs://localhost:9000/music/processed/albums")
 users = spark.read.parquet("hdfs://localhost:9000/music/processed/users")
 
 
-# Top 20 artistas 
+#1 Top 20 artistas 
 
 result_1 = artists.groupBy("artist") \
-    .agg(count("*").alias("mentions")) \
-    .orderBy(desc("mentions")) \
+    .agg(count("user_id").alias("participacion")) \
+    .orderBy(desc("participacion")) \
     .limit(20)
 
+print(f"Top 20 artistas")
 result_1.show(20, False)
 
 
-
-# Top 20 canciones
+#2 Top 20 canciones
 
 result_2 = tracks.groupBy("track") \
-    .agg(count("*").alias("mentions")) \
-    .orderBy(desc("mentions")) \
+    .agg(count("user_id").alias("participacion")) \
+    .orderBy(desc("participacion")) \
     .limit(20)
 
+print(f"Top 20 canciones")
 result_2.show(20, False)
 
 
-
-# Top 20 albumes
+#3 Top 20 albumes
 
 result_3 = albums.groupBy("album") \
-    .agg(count("*").alias("mentions")) \
-    .orderBy(desc("mentions")) \
+    .agg(count("user_id").alias("participacion")) \
+    .orderBy(desc("participacion")) \
     .limit(20)
 
+print(f"Top 20 albumes")
 result_3.show(20, False)
 
 
-
-# Artista numero 1
+#4 Artista numero 1
 
 result_4 = artists.filter(col("rank") == 1) \
     .groupBy("artist") \
-    .agg(count("*").alias("count_users")) \
-    .orderBy(desc("count_users"))
+    .agg(count("user_id").alias("users")) \
+    .orderBy(desc("users"))
 
-result_4.show(20, False)
+moda = result_4.first()
+moda_artista = moda["artist"]
+frecuencia = moda["users"]
+
+print("Artista numero 1, moda, frecuencia")
+result_4.show(truncate=False)
+
+print(f"Moda: {moda_artista}")
+print(f"Frecuencia: {frecuencia}")
+
+
+#5 Menciones por artista
+
+result_5 = artists.groupBy("artist") \
+    .agg(count("*").alias("menciones")) \
+    .orderBy(col("menciones").desc())
+
+print("Menciones por artista")
+result_5.show(truncate=False)
+
+
+stats = result_5.select(
+    mean("menciones").alias("media"),
+    stddev("menciones").alias("desviacion_estandar")
+).first()
+
+media = stats["media"]
+desviacion = stats["desviacion_estandar"]
+
+print("\nMedia:", media)
+print("Desviación estándar:", desviacion)
+
+
+mediana = result_5.selectExpr(
+    "approx_percentile(menciones, 0.5) as mediana"
+).first()["mediana"]
+
+print("Mediana:", mediana)
 
 
 
-# Menciones por artista
+#6 Long tail
 
-artist_counts = artists.groupBy("artist").agg(count("*").alias("mentions"))
+result_6 = artists.groupBy("artist") \
+    .agg(count("*").alias("menciones")) \
+    .orderBy(col("menciones").desc())
 
-result_5 = artist_counts.select(
-    avg("mentions").alias("mean"),
-    expr("percentile_approx(mentions, 0.5)").alias("median"),
-    stddev("mentions").alias("stddev")
+
+total_menciones = result_6.agg(spark_sum("menciones")).first()[0]
+
+
+window = Window.orderBy(col("menciones").desc())
+cumulative = result_6.withColumn(
+    "menciones_acumuladas",
+    spark_sum("menciones").over(window)
+).withColumn(
+    "porc_acumulado",
+    col("menciones_acumuladas") / total_menciones
 )
 
-result_5.show()
+
+cumulative_80 = cumulative.filter(col("porc_acumulado") <= 0.8)
+
+num_artistas_80 = cumulative_80.count()
+total_artistas = result_6.count()
+
+
+porcentaje_long_tail = num_artistas_80 / total_artistas * 100
+
+print("Long tail")
+print(f"Artistas necesarios para acumular el 80%: {num_artistas_80}")
+print(f"Total de artistas: {total_artistas}")
+print(f"Porcentaje de artistas (long tail): {porcentaje_long_tail:.2f}%")
 
 
 
-# Long tail
+#7 Items por usuario
 
-total_mentions = artist_counts.agg({"mentions": "sum"}).first()[0]
-
-w = Window.orderBy(desc("mentions"))
-
-cumulated = artist_counts.withColumn("cum_sum", expr("sum(mentions) over (order by mentions desc)")) \
-                         .withColumn("percentage", col("cum_sum") / total_mentions)
-
-result_6 = cumulated.filter(col("percentage") <= 0.8)
-
-result_6_count = result_6.count()
-
-print("Cantidad de artistas que representan 80% de menciones:", result_6_count)
-
-
-
-# Items por usuario
-
-result_7 = artists.groupBy("user_id").agg(count("*").alias("n_artists"))
-
-result_7_stats = result_7.select(
-    avg("n_artists").alias("mean"),
-    expr("percentile_approx(n_artists, 0.5)").alias("median")
+items_artistas = artists.groupBy("user_id") \
+    .agg(count("*").alias("num_artistas")
 )
 
-result_7_stats.show()
+media_artistas = items_artistas.select(mean("num_artistas")).first()[0]
+
+mediana_artistas = items_artistas.selectExpr(
+    "approx_percentile(num_artistas, 0.5) AS mediana"
+).first()["mediana"]
+
+
+items_tracks = tracks.groupBy("user_id") \
+    .agg(count("*").alias("num_canciones")
+)
+
+media_tracks = items_tracks.select(mean("num_canciones")).first()[0]
+
+mediana_tracks = items_tracks.selectExpr(
+    "approx_percentile(num_canciones, 0.5) AS mediana"
+).first()["mediana"]
+
+
+items_albums = albums.groupBy("user_id") \
+    .agg(count("*").alias("num_albums")
+)
+
+media_albums = items_albums.select(mean("num_albums")).first()[0]
+
+mediana_albums = items_albums.selectExpr(
+    "approx_percentile(num_albums, 0.5) AS mediana"
+).first()["mediana"]
+
+
+print("Items por usuario \n")
+
+print("Artistas por usuario")
+items_artistas.show(20)
+print("Media:", media_artistas)
+print("Mediana:", mediana_artistas)
+
+print("\n Canciones por usuario")
+items_tracks.show(20)
+print("Media:", media_tracks)
+print("Mediana:", mediana_tracks)
+
+print("\n Albumes por usuario")
+items_albums.show(20)
+print("Media:", media_albums)
+print("Mediana:", mediana_albums)
+
+
+#8 Artistas, canciones y albumes distintos
+
+num_artistas_unicos = artists.select(countDistinct("artist")).first()[0]
+
+num_canciones_unicas = tracks.select(countDistinct("track")).first()[0]
+
+num_albums_unicos = albums.select(countDistinct("album")).first()[0]
+
+print("Artistas, canciones y albumes distintos \n")
+print("Número de artistas únicos:", num_artistas_unicos)
+print("Número de canciones únicas:", num_canciones_unicas)
+print("Número de álbumes únicos:", num_albums_unicos)
 
 
 
-# Artistas, canciones y albumes distintos
+#9 Listas top 3 identicas
 
-result_8 = spark.createDataFrame([
-    ("artists", artists.select("artist").distinct().count()),
-    ("tracks", tracks.select("track").distinct().count()),
-    ("albums", albums.select("album").distinct().count())
-], ["category", "unique_count"])
+result_9 = artists.filter(col("rank") <= 3)
 
-result_8.show()
+listas_top3 = result_9.groupBy("user_id") \
+    .agg(concat_ws(",", collect_list("artist")).alias("top3_lista"))
 
 
+listas_duplicadas = listas_top3.groupBy("top3_lista") \
+    .count() \
+    .filter(col("count") > 1) \
+    .orderBy(col("count").desc())
 
-# Listas top 3 identicas
+listas_duplicadas.show(20, truncate=False)
 
-w2 = Window.partitionBy("user_id").orderBy("rank")
-
-user_top3 = artists.filter(col("rank") <= 3) \
-    .groupBy("user_id") \
-    .agg(collect_list("artist").alias("top3"))
-
-result_9 = user_top3.groupBy("top3") \
-    .agg(count("*").alias("dup_count")) \
-    .orderBy(desc("dup_count"))
-
-result_9.show(20, False)
+print("Listas top 3 identicas \n")
+print("Número de listas top-3 duplicadas:", listas_duplicadas.count())
 
 
 
- # Top 5 mismo artista
+ #10 Top 5 mismo artista
 
-top5 = artists.filter(col("rank") <= 5)
+top5 = tracks.filter(col("rank") <= 5)
 
-result_10 = top5.groupBy("user_id", "artist") \
-    .agg(count("*").alias("c")) \
-    .filter(col("c") == 5)
+usuarios_artistas_distintos = top5.groupBy("user_id") \
+    .agg(countDistinct("artist").alias("num_artistas_distintos"))
 
-result_10.show(20, False)
+usuarios_gustos_concentrados = usuarios_artistas_distintos.filter(
+    col("num_artistas_distintos") == 1
+)
+
+num_usuarios_concentrados = usuarios_gustos_concentrados.count()
+
+print("Top 5 mismo artista \n")
+print("Numero de usuarios con top 5 concentrado en un solo artista:", num_usuarios_concentrados)
 
 
-
- # Pares de artistas mas frecuentes
+'''
+ #11 Pares de artistas mas frecuentes
 
 from pyspark.sql.functions import explode, array_sort
 
@@ -162,10 +256,10 @@ result_11 = pairs_df.groupBy("pair").agg(count("*").alias("cnt")) \
     .orderBy(desc("cnt")).limit(50)
 
 result_11.show(50, False)
+'''
 
-
-
-# Combinaciones de 3 artistas frecuentes
+'''
+#12 Combinaciones de 3 artistas frecuentes
 
 def triples(arr):
     return list(combinations(arr, 3))
@@ -180,122 +274,231 @@ result_12 = triples_df.groupBy("triple").agg(count("*").alias("cnt")) \
     .orderBy(desc("cnt"))
 
 result_12.show(20, False)
+'''
+
+
+#13 Solapamiento artista-cancion
+
+top_artist = artists.filter(col("rank") == 1) \
+    .select(col("user_id"), col("artist").alias("top_artist"))
+
+
+top_track = tracks.filter(col("rank") == 1) \
+    .select(col("user_id"), col("track"), col("artist").alias("track_artist"))
+
+top_joined = top_artist.join(top_track, on="user_id")
+
+solapamiento = top_joined.filter(col("top_artist") == col("track_artist"))
+
+num_solapamiento = solapamiento.count()
+total_usuarios = top_artist.count()
+
+proporcion = num_solapamiento / total_usuarios * 100
+
+print("Solapamiento artista-cancion \n")
+print(f"Nomero de usuarios con solapamiento artista-cancion: {num_solapamiento}")
+print(f"Proporcion: {proporcion:.2f}%")
 
 
 
-# Solapamiento artista-canción
+#14 Posición promedio por artista
 
-user_top_track = tracks.filter(col("rank") == 1).select("user_id", col("artist").alias("top_track_artist"))
-user_top_artist = artists.filter(col("rank") == 1).select("user_id", col("artist").alias("top_artist"))
+posicion_promedio = artists.groupBy("artist") \
+    .agg(mean("rank").alias("posicion_media")) \
+    .orderBy(col("posicion_media").desc())
 
-merged = user_top_artist.join(user_top_track, "user_id")
-
-result_13 = merged.filter(col("top_artist") == col("top_track_artist")).count()
-
-print("Usuarios donde #1 track pertenece al #1 artist:", result_13)
+print("Posicion promedio por artista \n")
+posicion_promedio.show(20, truncate=False)
 
 
 
-# Posición promedio por artista
+#15 Frecuencia de el numero 1 en top 5 global
 
-result_14 = artists.groupBy("artist").agg(avg("rank").alias("avg_position")) \
-    .orderBy("avg_position")
+top1_usuarios = artists.filter(col("rank") == 1).select("user_id", "artist")
 
-result_14.show(20, False)
+artistas_populares = artists.groupBy("artist") \
+    .agg(count("*").alias("menciones")) \
+    .orderBy(col("menciones").desc())
 
+top5_global = artistas_populares.limit(5).select("artist")
 
-
-# Frecuencia de el numero 1
-
-top5_global = result_1.limit(5).select("artist").rdd.flatMap(lambda x: x).collect()
-
-result_15 = artists.filter(col("rank") == 1) \
-    .filter(col("artist").isin(top5_global)) \
-    .count()
-
-print("Usuarios cuyo #1 está en el top5 global:", result_15)
+usuarios_top1_en_top5 = top1_usuarios.join(top5_global, on="artist", how="inner")
 
 
+num_usuarios_total = top1_usuarios.count()
+num_usuarios_en_top5 = usuarios_top1_en_top5.count()
 
-# Estabilidad de posiciones
-
-rank1 = artists.filter(col("rank") == 1).select("user_id", col("artist").alias("a1"))
-rank2 = artists.filter(col("rank") == 2).select("user_id", col("artist").alias("a2"))
-
-result_16 = rank1.join(rank2, "user_id") \
-    .filter(col("a1") == col("a2"))
-
-print("Usuarios con mismo artista en #1 y #2:", result_16.count())
+proporcion = num_usuarios_en_top5 / num_usuarios_total * 100
 
 
-
-# Top artistas oyentes
-
-listeners = tracks.groupBy("user_id").agg(count("*").alias("n_tracks")) \
-                  .filter(col("n_tracks") > 40) \
-                  .select("user_id")
-
-result_18 = listeners.join(artists.filter(col("rank") == 1), "user_id") \
-                     .groupBy("artist") \
-                     .agg(count("*").alias("count")) \
-                     .orderBy(desc("count"))
-
-result_18.show(20, False)
+print("Frecuencia de el numero 1 en top 5 global")
+print(f"Proporcion de usuarios cuyo #1 esta en el top 5 global: {proporcion:.2f}%")
 
 
+#16 Estabilidad de posiciones
 
-# Popularidad cruzada
+top2 = artists.filter(col("rank") <= 2)
 
-artist_counts_tracks = tracks.groupBy("artist").count().withColumnRenamed("count", "track_count")
-artist_counts_artists = artists.groupBy("artist").count().withColumnRenamed("count", "artist_count")
+rank1 = top2.filter(col("rank") == 1).select(col("user_id"), col("artist").alias("artist_1"))
+rank2 = top2.filter(col("rank") == 2).select(col("user_id"), col("artist").alias("artist_2"))
 
-result_19 = artist_counts_artists.join(artist_counts_tracks, "artist") \
-                                .select("artist", "artist_count", "track_count",
-                                        (col("artist_count") - col("track_count")).alias("diff")) \
-                                .orderBy(desc("diff"))
+top2_joined = rank1.join(rank2, on="user_id")
 
-result_19.show(20, False)
+usuarios_mismo_artista = top2_joined.filter(col("artist_1") == col("artist_2"))
 
+num_usuarios_mismo_artista = usuarios_mismo_artista.count()
 
-
-# Artistas diversos
-
-result_20 = artists.groupBy("artist") \
-    .agg(count("*").alias("user_mentions"))
-
-result_20.show(20, False)
+print("Estabilidad de posiciones \n")
+print("Usuarios con el mismo artista en posiciones #1 y #2:", num_usuarios_mismo_artista)
 
 
+#18 Top artistas entre oyentes
 
-# Datos faltantes
-
-result_21 = users.select(
-    count("*").alias("rows"),
-    count("user_id").alias("user_id_ok"),
-    count("country").alias("country_ok")
+result_18 = tracks.groupBy("user_id") \
+    .agg(count("track").alias("num_canciones")
 )
 
-result_21.show()
+oyentes_40 = result_18.filter(col("num_canciones") > 40)
+
+tracks_filtrado = tracks.join(oyentes_40, on="user_id", how="inner")
+
+top_artistas_oyentes40 = tracks_filtrado.groupBy("artist").agg(
+    count("*").alias("total_reproducciones")
+).orderBy(col("total_reproducciones").desc())
+
+print(f"Top artistas entre oyentes")
+top_artistas_oyentes40.show(20, False)
 
 
 
-# Usuarios extremos
+#19 Popularidad cruzada
 
-user_counts = artists.groupBy("user_id").agg(count("*").alias("n_items"))
+tracks_counts = tracks.groupBy("artist").agg(
+    count("*").alias("tracks_count")
+)
 
-p99 = user_counts.agg(expr("percentile_approx(n_items, 0.99)")).first()[0]
+artists_counts = artists.groupBy("artist").agg(
+    count("*").alias("artists_count")
+)
 
-result_22 = user_counts.filter(col("n_items") >= p99)
+result_19 = tracks_counts.join(
+    artists_counts,
+    on="artist",
+    how="outer"
+)
 
-result_22.show(20, False)
+result_19 = result_19.select(
+    col("artist"),
+    coalesce(col("tracks_count"), lit(0)).alias("tracks_count"),
+    coalesce(col("artists_count"), lit(0)).alias("artists_count")
+)
+
+result_19 = result_19.withColumn(
+    "diferencia",
+    col("tracks_count") - col("artists_count")
+)
+
+
+result_19 = result_19.orderBy(col("diferencia").desc())
+
+print(f"Popularidad cruzada")
+result_19.show(50, truncate=False)
 
 
 
-# Artistas que aparecen menos de 5 veces
+#20 Artistas diversos
 
-result_23 = artist_counts.filter(col("mentions") < 5)
+usuarios_por_artista = artists.groupBy("artist").agg(
+    countDistinct("user_id").alias("usuarios_distintos")
+)
 
-result_23.show(20, False)
+canciones_por_artista = tracks.groupBy("artist").agg(
+    countDistinct("track").alias("canciones_distintas")
+)
+
+result_20 = usuarios_por_artista.join(
+    canciones_por_artista,
+    on="artist",
+    how="outer"
+)
+
+result_20 = result_20.select(
+    col("artist"),
+    coalesce(col("usuarios_distintos"), lit(0)).alias("usuarios_distintos"),
+    coalesce(col("canciones_distintas"), lit(0)).alias("canciones_distintas")
+)
+
+result_20 = result_20.orderBy(
+    col("usuarios_distintos").desc()
+)
+
+print(f"Artistas diversos")
+result_20.show(50, truncate=False)
+
+
+
+#21 Datos faltantes
+
+result_21 = users.select(
+    col("user_id"),
+    (col("country").isNull().cast("int")).alias("missing_country"),
+    (col("total_scrobbles").isNull().cast("int")).alias("missing_scrobbles")
+).withColumn(
+    "total_missing",
+    col("missing_country") + col("missing_scrobbles")
+)
+
+print("Datos faltantes")
+
+num_missing_users = result_21.filter(col("total_missing") > 0).count()
+print("Total de usuarios con datos faltantes:", num_missing_users)
+
+minimo = 1
+
+usuarios_con_pocos_items = users.filter(
+    col("total_scrobbles") < minimo
+)
+
+num_pocos_items = usuarios_con_pocos_items.count()
+
+print(f"Usuarios con menos de {minimo} scrobbles:", num_pocos_items)
+
+
+#22 Usuarios extremos
+
+result_22 = users.selectExpr(
+    "approx_percentile(total_scrobbles, array(0.01, 0.99)) as p"
+).first()["p"]
+
+p1 = result_22[0]
+p99 = result_22[1]
+
+print(f"Usuarios extremos")
+print("Percentil 1:", p1)
+print("Percentil 99:", p99)
+
+usuarios_atipicos = users.filter(
+    (col("total_scrobbles") <= p1) | 
+    (col("total_scrobbles") >= p99)
+)
+
+num_atipicos = usuarios_atipicos.count()
+
+print(f"Usuarios atipicos: {num_atipicos}")
+
+
+#23 Artistas que aparecen menos de 5 veces
+
+result_23 = artists.groupBy("artist") \
+    .agg(count("*").alias("menciones")) \
+    .orderBy(col("menciones").desc())
+
+artistas_baja_cobertura = result_23.filter(col("menciones") < 5)
+
+num_artistas_baja = artistas_baja_cobertura.count()
+
+print(f"Artistas que aparecen menos de 5 veces")
+print(f"Artistas con menos de 5 menciones: {num_artistas_baja}")
 
 
 
