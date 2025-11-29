@@ -516,15 +516,12 @@ num_missing_users = result_21.filter(col("total_missing") > 0).count()
 
 minimo = 1
 
-usuarios_con_pocos_items = users.filter(
-    col("total_scrobbles") < minimo
-)
-
+usuarios_con_pocos_items = users.filter(col("total_scrobbles") < minimo)
 num_pocos_items = usuarios_con_pocos_items.count()
 
 write_mysql(
     spark.createDataFrame([{
-        "missing_users": int(usuarios_con_pocos_items),
+        "missing_users": int(num_missing_users),
         "pocos_items": int(num_pocos_items)
     }]),
     "result_21_missing_data"
