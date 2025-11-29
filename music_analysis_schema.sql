@@ -7,7 +7,7 @@ USE music_analysis;
 DROP USER IF EXISTS 'ProyectoDB'@'localhost';
 CREATE USER 'ProyectoDB'@'localhost' IDENTIFIED BY 'PDB';
 
-GRANT ALL PRIVILEGES ON music_db.* TO 'ProyectoDB'@'localhost';
+GRANT ALL PRIVILEGES ON music_analysis.* TO 'ProyectoDB'@'localhost';
 FLUSH PRIVILEGES;
 
 -- =========================================================

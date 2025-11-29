@@ -226,7 +226,7 @@ num_albums_unicos = albums.select(countDistinct("album")).first()[0]
 write_mysql(
     spark.createDataFrame([{
         "artistas_unicos": int(num_artistas_unicos),
-        "canciones_unicas": int(num_canciones_unicos),
+        "canciones_unicas": int(num_canciones_unicas),
         "albums_unicos": int(num_albums_unicos),
     }]),
     "result_8_unique_counts"
