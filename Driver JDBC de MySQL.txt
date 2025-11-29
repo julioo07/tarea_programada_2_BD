@@ -2,7 +2,9 @@
 2. wget https://dev.mysql.com/get/Downloads/Connector-J/mysql-connector-j-9.0.0.zip
 3. unzip mysql-connector-j-9.0.0.zip
 
-COPIAR A LA DIRECCIÓN CON LOS JAR DE SPARK
-4. sudo cp mysql-connector-j-9.0.0/mysql-connector-j-9.0.0.jar /home/matthew/venv/lib/python3.12/site-packages/pyspark/jars/
+4. mkdir -p ~/music-loader/libs
+
+5. cp mysql-connector-j-9.0.0/mysql-connector-j-9.0.0.jar \
+   ~/music-loader/libs/
 
 
