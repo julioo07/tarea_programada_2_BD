@@ -23,8 +23,8 @@ def write_mysql(df: DataFrame, table: str):
         .option("url", "jdbc:mysql://localhost:3306/music_analysis")
         .option("driver", "com.mysql.cj.jdbc.Driver")
         .option("dbtable", table)
-        .option("user", "root")
-        .option("password", "TU_PASSWORD")   # Cambiar a su password de la conexion mysql
+        .option("user", "ProyectoDB")
+        .option("password", "PDB")   
         .mode("overwrite")
         .save()
     )

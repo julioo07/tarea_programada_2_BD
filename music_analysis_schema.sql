@@ -1,6 +1,14 @@
 DROP DATABASE IF EXISTS music_analysis;
 CREATE DATABASE music_analysis;
 USE music_analysis;
+-- ================================================
+-- CREAR USUARIO GENERAL PARA EL PROYECTO
+-- ================================================
+DROP USER IF EXISTS 'ProyectoDB'@'localhost';
+CREATE USER 'ProyectoDB'@'localhost' IDENTIFIED BY 'PDB';
+
+GRANT ALL PRIVILEGES ON music_db.* TO 'ProyectoDB'@'localhost';
+FLUSH PRIVILEGES;
 
 -- =========================================================
 -- ANALISIS #1 — Top artistas
