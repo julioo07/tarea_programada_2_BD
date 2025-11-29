@@ -7,4 +7,14 @@
 5. cp mysql-connector-j-9.0.0/mysql-connector-j-9.0.0.jar ~/music-loader/libs/
 
 
+Instalar MySQL
+
+sudo apt install mysql-server -y
+sudo service mysql start
+
+Cargar Esquema en MySQL
+sudo mysql < ~/music-loader/music_analysis_schema.sql
+
+
+
 
