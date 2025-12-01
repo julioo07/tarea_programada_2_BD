@@ -4,9 +4,9 @@ import pandas as pd
 
 app = Flask(__name__)
 
-# Configuración de la base de datos con socket
+# Configuración CORRECTA (sin socket, con usuario ProyectoDB)
 db_config = {
-    'unix_socket': '/var/run/mysqld/mysqld.sock',
+    'host': 'localhost',
     'user': 'ProyectoDB',
     'password': 'PDB',
     'database': 'music_analysis'
