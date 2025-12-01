@@ -7,8 +7,8 @@ app = Flask(__name__)
 # Configuración de la base de datos con socket
 db_config = {
     'unix_socket': '/var/run/mysqld/mysqld.sock',
-    'user': 'root',
-    'password': '',
+    'user': 'ProyectoDB',
+    'password': 'PDB',
     'database': 'music_analysis'
 }
 
