@@ -1,0 +1,6 @@
+1. La cantante más exitosa con bastante diferencia es Taylor Swift apareciendo como la cantante Top 1 en favoritos
+además de aparecer en muchos otros tops.
+2. se puede ver una curiosa divisición de generos en el Top 3 repetidos, las mujeres teniendo un Top 3 formado por
+Taylor Swift, Lana del Rey, Ariana Grande y el de hombres siendo Kanye West, Tyler The Creator y Kendrick Lamar 
+mostrando que hay muchos usuario que prefieren escuchar artistas de su mismo genero.
+3. Radiohead es el grupo con más menciones en todo el dataset
