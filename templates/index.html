@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Music Analysis Database</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; }
+        .menu { background: #f0f0f0; padding: 20px; margin-bottom: 20px; }
+        .menu a { margin-right: 15px; text-decoration: none; color: #333; }
+        .menu a:hover { color: #007bff; }
+        .menu a.active { font-weight: bold; color: #007bff; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+    </style>
+</head>
+<body>
+    <h1>🎵 Music Analysis Database</h1>
+    
+    <div class="menu">
+        <strong>Tablas disponibles:</strong>
+        {% for table in tables %}
+            {% if table == selected_table %}
+                <a href="?table={{ table }}" class="active">{{ table }}</a>
+            {% else %}
+                <a href="?table={{ table }}">{{ table }}</a>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if selected_table %}
+        <h2>Tabla: {{ selected_table }}</h2>
+        
+        {% if not data.empty %}
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for column in data.columns %}
+                                <th>{{ column }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for _, row in data.iterrows() %}
+                            <tr>
+                                {% for value in row %}
+                                    <td>{{ value }}</td>
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <p><em>Mostrando {{ data.shape[0] }} filas, {{ data.shape[1] }} columnas</em></p>
+        {% else %}
+            <p>No hay datos en esta tabla o ocurrió un error.</p>
+        {% endif %}
+    {% else %}
+        <p>Selecciona una tabla del menú para ver sus datos.</p>
+    {% endif %}
+</body>
+</html>
